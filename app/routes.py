@@ -13,15 +13,18 @@ class Users(Resource):
     def post(self):
         new_user = request.get_json()
         if not new_user:
-            return {'message': "No input data provided"}, 400
+            return {'error': "No input data provided"}, 400
         if not re.match(r'[^@]+@[^@]+\.[^@]+', new_user.get("email", "")):
-            return {"message": "Invalid email"}, 400
+            return {"error": "Invalid email"}, 400
         if not new_user.get("username", None):
-            return {"message": "Invalid username"}, 400
-        if len(User.query.filter((User.username == new_user["username"]) | (User.email == new_user["email"])).all())!=0:
-            return {'message': "username or email already taken"}, 409
-        
-        u = User(username=new_user["username"], email=new_user["email"])
+            return {"error": "Invalid username"}, 400
+        if len(User.query.filter((User.username == new_user.get("username", None)) | (User.email == new_user.get("email", None))).all())!=0:
+            return {"error": "username or email already taken"}, 409
+        if new_user.get("id", None):
+            if not User.query.get(new_user["id"]):
+                u = User(id=new_user["id"], username=new_user["username"], email=new_user["email"])
+            else: return {"error": "ID already exists"}, 409
+        else: u = User(username=new_user["username"], email=new_user["email"])
         db.session.add(u)
         db.session.commit()
         return u.serialize, 201
@@ -37,16 +40,23 @@ class oneUser(Resource):
         user = User.query.get(id)
         if not user: return {"error": "User not found"}, 404
         new_user = request.get_json()
-
+        
+        if len(User.query.filter((User.username == new_user.get("username", None)) | (User.email == new_user.get("email", None))).all())!=0:
+            return {'error': "username or email already taken"}, 409
+        
         if new_user.get("email", None):
             if not re.match(r'[^@]+@[^@]+\.[^@]+', new_user.get("email", "")):
-                return {"message": "Invalid email"}, 400
+                return {"error": "Invalid email"}, 400
             else: user.email = new_user["email"]
         if new_user.get("username", None):
             user.username = new_user["username"]
+        if new_user.get("id", None):
+            if not User.query.get(new_user["id"]):
+                user.id = new_user["id"]
+            else: return {"error": "ID already exists"}, 409
         if new_user.get("reg_date", None):
             try: user.reg_date = datetime.strptime(" ".join(new_user["reg_date"]), "%d-%m-%Y %H:%M:%S")
-            except ValueError: return {"message": f"time data {new_user["reg_date"]} does not match format '%d-%m-%Y %H:%M:%S'"}, 400
+            except ValueError: return {"error": f"time data {new_user["reg_date"]} does not match format '%d-%m-%Y %H:%M:%S'"}, 400
         db.session.commit()
         return user.serialize, 200
     
@@ -55,5 +65,13 @@ class oneUser(Resource):
         if user:
             db.session.delete(user)
             db.session.commit()
-            return {"message": "User deleted"}, 200
+            return user.serialize, 200
         return {"error": "User not found"}, 404
+@api.resource("/users/<id>")
+class oneUserStr(Resource):
+    def get(self, id):
+        return {"error": "Invalid ID supplied"}, 400
+    def put(self, id):
+        return {"error": "Invalid ID supplied"}, 400
+    def delete(self, id):
+        return {"error": "Invalid ID supplied"}, 400
